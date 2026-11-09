@@ -4,6 +4,9 @@ const path = require("path");
 
 const courtRoutes = require("./routes/courtRoutes");
 const holdRoutes = require("./routes/holdRoutes");
+const bookingRoutes = require("./routes/bookingRoutes");
+const reportRoutes = require("./routes/reportRoutes");
+const webRoutes = require("./routes/webRoutes");
 
 const app = express();
 
@@ -19,17 +22,20 @@ app.use(express.static(path.join(__dirname, "public")));
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
-// Home route
-app.get("/", (req, res) => {
-    res.send("Court Booking System API is running!");
-});
+// Web Frontend Routes (EJS)
+app.use("/", webRoutes);
 
 // API Routes
 app.use("/courts", courtRoutes);
 app.use("/holds", holdRoutes);
+app.use("/bookings", bookingRoutes);
+app.use("/reports", reportRoutes);
 
 // 404 Handler
 app.use((req, res) => {
+    if (req.accepts("html")) {
+        return res.status(404).send("Page not found");
+    }
     res.status(404).json({
         success: false,
         message: "Endpoint not found"

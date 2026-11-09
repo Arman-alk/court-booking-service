@@ -5,7 +5,7 @@ const bookingSchema = new mongoose.Schema(
         member: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Member",
-            required: [true, "Member reference is required"]
+            required: [true, "Member (User) reference is required"]
         },
         court: {
             type: mongoose.Schema.Types.ObjectId,
@@ -14,7 +14,15 @@ const bookingSchema = new mongoose.Schema(
         },
         holdId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "Hold"
+            ref: "Hold",
+            unique: true,
+            sparse: true
+        },
+        bookingDate: {
+            type: Date,
+            default: function () {
+                return this.startTime;
+            }
         },
         startTime: {
             type: Date,
@@ -31,14 +39,14 @@ const bookingSchema = new mongoose.Schema(
         },
         totalPrice: {
             type: Number,
-            required: true,
+            default: 0,
             min: [0, "Total price cannot be negative"]
         },
         payment: {
             status: {
                 type: String,
                 enum: ["pending", "paid", "refunded", "failed"],
-                default: "pending"
+                default: "paid"
             },
             method: {
                 type: String,
@@ -48,16 +56,50 @@ const bookingSchema = new mongoose.Schema(
                 type: String
             },
             paidAt: {
+                type: Date,
+                default: Date.now
+            }
+        },
+        cancellation: {
+            cancelledAt: {
                 type: Date
+            },
+            reason: {
+                type: String,
+                trim: true
+            },
+            refundAmount: {
+                type: Number,
+                default: 0,
+                min: 0
+            },
+            refundStatus: {
+                type: String,
+                enum: ["none", "full", "partial"],
+                default: "none"
             }
         }
     },
     {
-        timestamps: true
+        timestamps: true,
+        toJSON: { virtuals: true },
+        toObject: { virtuals: true }
     }
 );
 
+// Virtual aliases for user and court IDs
+bookingSchema.virtual("userId").get(function () {
+    return this.member;
+});
+
+bookingSchema.virtual("courtId").get(function () {
+    return this.court;
+});
+
 // Compound index to quickly find conflicting confirmed bookings
 bookingSchema.index({ court: 1, status: 1, startTime: 1, endTime: 1 });
+
+// Index for fast lookup of member's bookings
+bookingSchema.index({ member: 1, status: 1, startTime: 1 });
 
 module.exports = mongoose.model("Booking", bookingSchema);

@@ -1,0 +1,167 @@
+<%- include("partials/header", { title: court.name + " - Availability", currentPath: "/courts" }) %>
+
+<!-- ── Member ID bar ── -->
+<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:0.85rem 1.2rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+    <span style="font-weight:600;white-space:nowrap;">👤 Your Member ID:</span>
+    <input id="memberIdInput" type="text" placeholder="Paste your Member ID here (from seed output)"
+        style="flex:1;min-width:260px;padding:0.45rem 0.75rem;border:1px solid #ccc;border-radius:6px;font-family:monospace;font-size:0.9rem;"
+        value="<%= demoMemberId || '' %>" />
+    <button onclick="saveMemberId()" class="btn btn-primary" style="white-space:nowrap;padding:0.45rem 1rem;">Save ID</button>
+    <span id="memberIdStatus" style="font-size:0.85rem;color:#155724;"></span>
+</div>
+
+<div style="margin-bottom: 2rem;">
+    <a href="/" style="color: var(--primary); text-decoration: none; font-weight: 500;">&larr; Back to all courts</a>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h2><%= court.name %></h2>
+            <p style="color: var(--text-muted);">
+                <%= court.venue?.name %> &bull; Sport: <strong><%= court.sportType.toUpperCase() %></strong> &bull; Slot: <%= court.venue?.slotDurationMinutes || 60 %> mins
+            </p>
+        </div>
+        <form method="GET" action="/courts/<%= court._id %>/view" style="display: flex; align-items: center; gap: 0.5rem;">
+            <label for="date" style="font-weight: 600;">Date:</label>
+            <input type="date" id="date" name="date" value="<%= selectedDate %>" onchange="this.form.submit()" style="padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem;">
+        </form>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 2rem; background: white;">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <h3>Schedule for <%= selectedDate %></h3>
+            <p style="color: var(--text-muted); font-size: 0.9rem;">
+                Operating hours: <%= availability.operatingHours.open %> - <%= availability.operatingHours.close %> | 
+                Available: <strong><%= availability.availableSlots %></strong> of <strong><%= availability.totalSlots %></strong> slots
+            </p>
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+            <span class="badge badge-available">Available</span>
+            <span class="badge badge-held">Temporarily Held</span>
+            <span class="badge badge-booked">Booked</span>
+        </div>
+    </div>
+
+    <div class="slots-grid">
+        <% if (availability.slots && availability.slots.length > 0) { %>
+            <% availability.slots.forEach(slot => { %>
+                <% 
+                    const startTimeFormatted = new Date(slot.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC' });
+                    const endTimeFormatted = new Date(slot.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC' });
+                %>
+                <div class="slot-card <%= slot.status %>">
+                    <div class="slot-time"><%= startTimeFormatted %> - <%= endTimeFormatted %></div>
+                    <div class="slot-price">$<%= slot.price %> / hour</div>
+                    <div style="margin-bottom: 0.75rem;">
+                        <span class="badge badge-<%= slot.status %>"><%= slot.status %></span>
+                    </div>
+
+                    <% if (slot.status === 'available') { %>
+                        <button onclick="handleHoldSlot('<%= slot.startTime %>', '<%= slot.endTime %>')" class="btn btn-primary" style="width: 100%; font-size: 0.85rem; padding: 0.45rem;">
+                            Hold Slot
+                        </button>
+                    <% } else if (slot.status === 'held') { %>
+                        <button class="btn btn-secondary" disabled style="width: 100%; font-size: 0.85rem; padding: 0.45rem;">
+                            Held (In Checkout)
+                        </button>
+                    <% } else { %>
+                        <button class="btn btn-secondary" disabled style="width: 100%; font-size: 0.85rem; padding: 0.45rem;">
+                            Unavailable
+                        </button>
+                    <% } %>
+                </div>
+            <% }) %>
+        <% } else { %>
+            <p style="color: var(--text-muted); padding: 1rem;">No slots available for this date.</p>
+        <% } %>
+    </div>
+</div>
+
+<script>
+    // ── Member ID helpers ──────────────────────────────────────────────
+    const INPUT   = document.getElementById("memberIdInput");
+    const STATUS  = document.getElementById("memberIdStatus");
+
+    // On page load: if the server gave us a demo ID, store it
+    (function init() {
+        const serverDemoId = "<%= demoMemberId || '' %>";
+        const stored = localStorage.getItem("demoMemberId");
+        if (serverDemoId && !stored) {
+            localStorage.setItem("demoMemberId", serverDemoId);
+        }
+        if (stored || serverDemoId) {
+            INPUT.value = stored || serverDemoId;
+            STATUS.textContent = "✓ Member ID ready";
+        }
+    })();
+
+    function saveMemberId() {
+        const val = INPUT.value.trim();
+        if (!val) { STATUS.textContent = "⚠ Please enter a Member ID"; STATUS.style.color="#856404"; return; }
+        localStorage.setItem("demoMemberId", val);
+        STATUS.textContent = "✓ Saved!";
+        STATUS.style.color = "#155724";
+    }
+
+    // ── Hold + Confirm flow ────────────────────────────────────────────
+    async function handleHoldSlot(startTime, endTime) {
+        const memberId = localStorage.getItem("demoMemberId") || INPUT.value.trim();
+
+        if (!memberId) {
+            alert("Please enter your Member ID in the yellow bar above and click Save ID, then try again.\n\nYou can find your Member ID in the terminal output when you ran: npm run seed");
+            INPUT.focus();
+            return;
+        }
+
+        // Disable all Hold buttons to prevent double-clicks
+        document.querySelectorAll(".btn-primary").forEach(b => b.disabled = true);
+
+        try {
+            const res = await fetch("/holds", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    memberId,
+                    courtId: "<%= court._id %>",
+                    startTime,
+                    endTime
+                })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                const confirmNow = confirm(
+                    "✅ Hold created! You have 10 minutes to confirm.\n\n" +
+                    "Click OK to confirm and book this slot now.\n" +
+                    "Click Cancel to hold it and confirm later."
+                );
+                if (confirmNow) {
+                    const confirmRes = await fetch(`/holds/${data.data._id}/confirm`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ paymentMethod: "credit_card" })
+                    });
+                    const confirmData = await confirmRes.json();
+                    if (confirmData.success) {
+                        alert("🎉 Booking confirmed successfully!\n\nRedirecting to My Bookings...");
+                        window.location.href = `/my-bookings?memberId=${memberId}`;
+                    } else {
+                        alert("❌ Confirmation failed: " + confirmData.message);
+                        window.location.reload();
+                    }
+                } else {
+                    alert("Hold saved. Return within 10 minutes to confirm.");
+                    window.location.reload();
+                }
+            } else {
+                alert("❌ Hold failed: " + data.message);
+                document.querySelectorAll(".btn-primary").forEach(b => b.disabled = false);
+            }
+        } catch (err) {
+            alert("❌ Network error: " + err.message);
+            document.querySelectorAll(".btn-primary").forEach(b => b.disabled = false);
+        }
+    }
+</script>
+
+<%- include("partials/footer") %>

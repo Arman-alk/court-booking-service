@@ -1,0 +1,48 @@
+<%- include("partials/header", { title: "Find & Book Courts", currentPath: "/" }) %>
+
+<section class="hero">
+    <h1>Reserve Your Sports Court Online</h1>
+    <p>Browse venues, check real-time availability, and secure your time slot instantly.</p>
+</section>
+
+<div class="filters-bar">
+    <a href="/" class="filter-btn <%= !selectedSport ? 'active' : '' %>">All Sports</a>
+    <a href="/?sport=tennis" class="filter-btn <%= selectedSport === 'tennis' ? 'active' : '' %>">Tennis</a>
+    <a href="/?sport=badminton" class="filter-btn <%= selectedSport === 'badminton' ? 'active' : '' %>">Badminton</a>
+    <a href="/?sport=squash" class="filter-btn <%= selectedSport === 'squash' ? 'active' : '' %>">Squash</a>
+    <a href="/?sport=basketball" class="filter-btn <%= selectedSport === 'basketball' ? 'active' : '' %>">Basketball</a>
+    <a href="/?sport=pickleball" class="filter-btn <%= selectedSport === 'pickleball' ? 'active' : '' %>">Pickleball</a>
+</div>
+
+<div class="courts-grid">
+    <% if (courts && courts.length > 0) { %>
+        <% courts.forEach(court => { %>
+            <div class="card">
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                        <span class="badge badge-sport"><%= court.sportType %></span>
+                        <span class="badge badge-available"><%= court.status %></span>
+                    </div>
+                    <h3><%= court.name %></h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+                        📍 <%= court.venue ? court.venue.name : "Sports Complex" %><br>
+                        <% if (court.venue && court.venue.address) { %>
+                            <%= court.venue.address.street %>, <%= court.venue.address.city %>
+                        <% } %>
+                    </p>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+                        ⏰ Hours: <%= court.venue?.operatingHours?.open || "06:00" %> - <%= court.venue?.operatingHours?.close || "22:00" %>
+                    </p>
+                </div>
+                <a href="/courts/<%= court._id %>/view" class="btn btn-primary" style="display: block;">Check Availability & Book</a>
+            </div>
+        <% }) %>
+    <% } else { %>
+        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px solid var(--border);">
+            <h3>No courts found</h3>
+            <p style="color: var(--text-muted); margin-top: 0.5rem;">Try selecting another sport filter or seed the database.</p>
+        </div>
+    <% } %>
+</div>
+
+<%- include("partials/footer") %>

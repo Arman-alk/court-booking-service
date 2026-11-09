@@ -1,0 +1,103 @@
+<%- include("partials/header", { title: "My Bookings", currentPath: "/my-bookings" }) %>
+
+<div style="margin-bottom: 2rem;">
+    <h2>My Bookings Dashboard</h2>
+    <p style="color: var(--text-muted);">Manage your active reservations, view booking history, and check refund statuses.</p>
+</div>
+
+<div class="card" style="margin-bottom: 2rem; background: white;">
+    <form method="GET" action="/my-bookings" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 250px;">
+            <label for="memberId" style="display: block; font-weight: 600; margin-bottom: 0.35rem; font-size: 0.9rem;">Member ID:</label>
+            <input type="text" id="memberId" name="memberId" value="<%= memberId %>" placeholder="Paste Member ObjectId here" style="width: 100%; padding: 0.6rem; border: 1px solid var(--border); border-radius: 6px;">
+        </div>
+        <div>
+            <button type="submit" class="btn btn-primary">Load My Bookings</button>
+        </div>
+    </form>
+</div>
+
+<% if (bookings && bookings.length > 0) { %>
+    <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <% bookings.forEach(booking => { %>
+            <div class="card" style="display: flex; flex-direction: row; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                        <span class="badge badge-sport"><%= booking.court?.sportType || "court" %></span>
+                        <span class="badge badge-<%= booking.status %>"><%= booking.status %></span>
+                        <% if (booking.cancellation && booking.cancellation.refundStatus) { %>
+                            <span class="badge badge-held">Refund: <%= booking.cancellation.refundStatus %> ($<%= booking.cancellation.refundAmount %>)</span>
+                        <% } %>
+                    </div>
+                    <h3 style="margin-bottom: 0.25rem;"><%= booking.court?.name || "Court" %></h3>
+                    <p style="color: var(--text-muted); font-size: 0.9rem;">
+                        🗓️ Date: <%= new Date(booking.startTime).toLocaleDateString([], { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }) %> | 
+                        ⏰ Time: <%= new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC' }) %> - <%= new Date(booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC' }) %>
+                    </p>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">
+                        Booking ID: <code><%= booking._id %></code> &bull; Total Price: <strong>$<%= booking.totalPrice %></strong> (<%= booking.payment?.status %>)
+                    </p>
+                </div>
+                <div>
+                    <% if (booking.status === 'confirmed') { %>
+                        <button onclick="handleCancelBooking('<%= booking._id %>', '<%= booking.startTime %>', <%= booking.totalPrice %>)" class="btn btn-danger" style="font-size: 0.9rem;">
+                            Cancel Booking
+                        </button>
+                    <% } else { %>
+                        <span style="color: var(--text-muted); font-size: 0.9rem;">Cancelled on <%= new Date(booking.cancellation?.cancelledAt || booking.updatedAt).toLocaleDateString() %></span>
+                    <% } %>
+                </div>
+            </div>
+        <% }) %>
+    </div>
+<% } else if (memberId) { %>
+    <div style="text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px solid var(--border);">
+        <h3>No bookings found</h3>
+        <p style="color: var(--text-muted); margin-top: 0.5rem;">You haven't made any bookings yet. Head over to the <a href="/" style="color: var(--primary);">Courts</a> tab to make your first reservation!</p>
+    </div>
+<% } else { %>
+    <div style="text-align: center; padding: 3rem; background: white; border-radius: 12px; border: 1px solid var(--border);">
+        <h3>Enter a Member ID</h3>
+        <p style="color: var(--text-muted); margin-top: 0.5rem;">Please enter or paste your Member ID above to view your booking history.</p>
+    </div>
+<% } %>
+
+<script>
+    async function handleCancelBooking(bookingId, startTimeStr, price) {
+        const startTime = new Date(startTimeStr);
+        const now = new Date();
+        const hoursUntil = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+        let policyNotice = "";
+        if (hoursUntil >= 24) {
+            policyNotice = `You are cancelling more than 24 hours in advance. You will receive a 100% full refund of $${price}.`;
+        } else if (hoursUntil > 0) {
+            policyNotice = `You are cancelling less than 24 hours before the booking. Per policy, NO REFUND will be issued.`;
+        } else {
+            alert("Cannot cancel a past or ongoing booking.");
+            return;
+        }
+
+        const reason = prompt(`${policyNotice}\n\nPlease enter a reason for cancellation:`, "Change of plans");
+        if (reason === null) return;
+
+        try {
+            const res = await fetch(`/bookings/${bookingId}/cancel`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ reason })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert(data.message);
+                window.location.reload();
+            } else {
+                alert("Cancellation failed: " + data.message);
+            }
+        } catch (err) {
+            alert("Error: " + err.message);
+        }
+    }
+</script>
+
+<%- include("partials/footer") %>
